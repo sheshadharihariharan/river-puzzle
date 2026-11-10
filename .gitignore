@@ -1,0 +1,4 @@
+node_modules/
+dist/
+# Gemini reference images: not used by the game, kept out of the public repo
+models/Images/

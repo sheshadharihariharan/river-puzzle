@@ -1,0 +1,18 @@
+{
+  "id": "meadow-05",
+  "name": "Rocky Bend",
+  "map": [
+    "S.......",
+    "##.#####",
+    "~~~~~~~~",
+    "#####.##",
+    "........",
+    "......H."
+  ],
+  "pieces": {
+    "stone": 3,
+    "plank": 1
+  },
+  "par": 3,
+  "tip": "Planks are walked end to end, so put stones where the path turns."
+}

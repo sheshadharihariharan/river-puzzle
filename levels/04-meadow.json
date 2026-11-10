@@ -1,0 +1,18 @@
+{
+  "id": "meadow-04",
+  "name": "Turn It Around",
+  "map": [
+    "....S...",
+    "........",
+    "~~~~~~~~",
+    "~~~~~~~~",
+    "........",
+    ".H......"
+  ],
+  "pieces": {
+    "stone": 1,
+    "plank": 1
+  },
+  "par": 1,
+  "tip": "Click a plank on the river to turn it."
+}

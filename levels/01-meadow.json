@@ -1,0 +1,17 @@
+{
+  "id": "meadow-01",
+  "name": "First Steps",
+  "map": [
+    "..S.....",
+    "........",
+    "~~~~~~~~",
+    "........",
+    ".....H..",
+    "........"
+  ],
+  "pieces": {
+    "stone": 1
+  },
+  "par": 1,
+  "tip": "Drag the stone from the panel onto the river, then press Go!"
+}
