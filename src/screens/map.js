@@ -180,7 +180,7 @@ export async function showMap(stage, ui, nav, justUnlocked = null) {
       sign.textContent = AREA_NAMES[areaOf(i)] ?? areaOf(i);
       labels.append(sign);
       // First area: just behind its first pedestal. Later areas: on the bridge that leads into them.
-      const at = i === 0 ? spots[0].clone().add(new THREE.Vector3(0, 0.5, -1.7)) : spots[i - 1].clone().add(spots[i]).multiplyScalar(0.5).setY(0.6);
+      const at = i === 0 ? spots[0].clone().add(new THREE.Vector3(-1.9, 0.5, 0.2)) : spots[i - 1].clone().add(spots[i]).multiplyScalar(0.5).setY(0.6);
       return { sign, at };
     });
   const place = (el, point) => {
