@@ -378,6 +378,22 @@ export async function showBoard(stage, ui, index, nav) {
     return d.dir === 'h' ? { type: d.type, dir: d.dir, col: col - d.grab, row } : { type: d.type, dir: d.dir, col, row: row - d.grab };
   }
 
+  // If the dragged piece doesn't fit where it is, try it turned (and grabbed at another cell) so it
+  // snaps into the gap. Touch screens have no right-click or R key to turn a piece mid-drag.
+  function autoFit(d) {
+    const fits = (dir, grab) => {
+      const spot = dropSpot({ ...d, dir, grab });
+      return spot && settle(level, placed, spot, d.from);
+    };
+    if (!d.cell || fits(d.dir, d.grab)) return;
+    const len = PIECES[d.type].length;
+    for (const dir of [d.dir, d.dir === 'h' ? 'v' : 'h']) {
+      for (let grab = 0; grab < len; grab++) {
+        if (fits(dir, grab)) return Object.assign(d, { dir, grab });
+      }
+    }
+  }
+
   function drawDrag() {
     ghosts.forEach((g) => (g.visible = false));
     if (dragObj && (!drag || !drag.moved)) {
@@ -505,6 +521,7 @@ export async function showBoard(stage, ui, index, nav) {
       sfx.pickup();
       drawPieces();
     }
+    if (drag.moved) autoFit(drag);
     drawDrag();
   });
   on(window, 'pointerup', (e) => {
