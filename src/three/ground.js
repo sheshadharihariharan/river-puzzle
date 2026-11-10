@@ -73,25 +73,32 @@ const waterFragment = `
   }`;
 
 // area: { x0, z0, x1, z1 } in cells. waterAt(col, row) -> false, 'shallow' or 'deep'.
-// tint(col, row) -> 0xRRGGBB multiplier for the grass. flow: [x, z] direction the river runs.
-export function buildGround(stage, scene, area, waterAt, tint = () => 0xffffff, flow = [1, 0]) {
+// landAt(col, row) -> { grass, earth } colours for that block. flow: [x, z] direction the river runs.
+// colors: { deep, shallow, line, deepWater } for the water.
+export function buildGround(stage, scene, area, waterAt, landAt, flow, colors) {
   const land = [];
   for (let row = area.z0; row < area.z1; row++)
     for (let col = area.x0; col < area.x1; col++) if (!waterAt(col, row)) land.push({ col, row });
 
-  // Grass blocks: green top, earth sides that show above the water like a river bank.
+  // Ground blocks: grass (or snow) on top, earth sides that show above the water like a river bank.
+  // One batch per colour pair, so each area can have its own look.
   const box = new THREE.BoxGeometry(1, 1.2, 1).translate(0, -0.6, 0);
-  const grass = noOutline(toon(0x6cc04a));
-  const earth = noOutline(toon(0x8a5a32));
-  const blocks = new THREE.InstancedMesh(box, [earth, earth, grass, earth, earth, earth], land.length);
   const m = new THREE.Matrix4();
-  const color = new THREE.Color();
-  land.forEach(({ col, row }, i) => {
-    blocks.setMatrixAt(i, m.makeTranslation(col + 0.5, 0, row + 0.5));
-    blocks.setColorAt(i, color.setHex(tint(col, row)));
-  });
-  blocks.receiveShadow = true;
-  scene.add(blocks);
+  const groups = new Map();
+  for (const cell of land) {
+    const { grass, earth } = landAt(cell.col, cell.row);
+    const k = `${grass},${earth}`;
+    if (!groups.has(k)) groups.set(k, { grass, earth, cells: [] });
+    groups.get(k).cells.push(cell);
+  }
+  for (const g of groups.values()) {
+    const top = noOutline(toon(g.grass));
+    const side = noOutline(toon(g.earth));
+    const blocks = new THREE.InstancedMesh(box, [side, side, top, side, side, side], g.cells.length);
+    g.cells.forEach(({ col, row }, i) => blocks.setMatrixAt(i, m.makeTranslation(col + 0.5, 0, row + 0.5)));
+    blocks.receiveShadow = true;
+    scene.add(blocks);
+  }
 
   // One texel per cell: red = water, green = deep water. Linear filtering softens it into a shore gradient.
   const w = area.x1 - area.x0;
@@ -109,10 +116,10 @@ export function buildGround(stage, scene, area, waterAt, tint = () => 0xffffff, 
   const waterUniforms = {
     time: { value: 0 },
     flow: { value: new THREE.Vector2(...flow).normalize() },
-    deep: { value: new THREE.Color(0x1b93dd) },
-    shallow: { value: new THREE.Color(0x4ccbe8) },
-    deepWater: { value: new THREE.Color(0x0d4c9c) },
-    lineColor: { value: new THREE.Color(0xc9f1ff) },
+    deep: { value: new THREE.Color(colors.deep) },
+    shallow: { value: new THREE.Color(colors.shallow) },
+    deepWater: { value: new THREE.Color(colors.deepWater) },
+    lineColor: { value: new THREE.Color(colors.line) },
     mask: { value: mask },
     bounds: { value: new THREE.Vector4(area.x0, area.z0, w, d) },
   };

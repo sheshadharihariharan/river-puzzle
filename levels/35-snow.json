@@ -1,0 +1,17 @@
+{
+  "id": "snow-35",
+  "name": "Frostbite",
+  "map": [
+    "S.#IIII#F",
+    "..IIIII~~",
+    "~TT~~IIT~",
+    "~~~~~~~~~",
+    "#..==...H"
+  ],
+  "pieces": {
+    "stone": 3,
+    "plank": 2,
+    "log": 1
+  },
+  "par": 3
+}

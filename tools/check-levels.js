@@ -1,8 +1,8 @@
 // Checks every level in levels/: can it be solved, and what is the fewest pieces (par)?
 // Usage: node tools/check-levels.js
 import { readFileSync, readdirSync } from 'node:fs';
-import { parseLevel, PIECES, PIECE_TYPES, CURRENTS, canPlace, settle } from '../src/logic/grid.js';
-import { solves } from '../src/logic/path.js';
+import { parseLevel, PIECES, PIECE_TYPES, CURRENTS, canPlace, settle, pieceCells } from '../src/logic/grid.js';
+import { solves, reachable } from '../src/logic/path.js';
 
 const dir = new URL('../levels/', import.meta.url);
 
@@ -21,29 +21,35 @@ function candidates(level) {
   return list;
 }
 
-// Calm water: order doesn't matter, so try each set of n pieces once.
+// Calm water: every piece on the hero's route touches the part of the route before it, so only try
+// pieces next to somewhere the hero can already reach. Arrangements already tried are skipped.
+const SIDES = [[1, 0], [-1, 0], [0, 1], [0, -1]];
 function solveCalm(level, list, n) {
   const left = { ...level.pieces };
   const placed = [];
-  const search = (from) => {
+  const seen = new Set();
+  const key = () => placed.map((p) => `${p.type}${p.col},${p.row}${p.dir}`).sort().join('|');
+  const search = () => {
     if (placed.length === n) return solves(level, placed) ? [...placed] : null;
-    for (let i = from; i < list.length; i++) {
-      const p = list[i];
-      if (!left[p.type] || !canPlace(level, placed, p)) continue;
+    const R = reachable(level, placed);
+    const near = (p) => pieceCells(p).some((c) => SIDES.some(([dc, dr]) => R.has(`${c.col + dc},${c.row + dr}`)));
+    for (const p of list) {
+      if (!left[p.type] || !canPlace(level, placed, p) || !near(p)) continue;
       left[p.type]--;
       placed.push(p);
-      const found = search(i + 1);
+      const k = key();
+      const found = seen.has(k) ? null : (seen.add(k), search());
       placed.pop();
       left[p.type]++;
       if (found) return found;
     }
     return null;
   };
-  return search(0);
+  return search();
 }
 
-// Currents: where a piece ends up depends on what is already there, so try drops in every order,
-// skipping arrangements already seen.
+// Currents and rafts: where a piece ends up depends on what is already there, so drops are tried in
+// every order. A piece must touch somewhere the hero can reach, or another piece it might be stopped by.
 function solveDrifting(level, list, n) {
   const left = { ...level.pieces };
   const placed = [];
@@ -51,10 +57,13 @@ function solveDrifting(level, list, n) {
   const key = () => placed.map((p) => `${p.type}${p.col},${p.row}${p.dir}`).sort().join('|');
   const search = () => {
     if (placed.length === n) return solves(level, placed) ? [...placed] : null;
+    const R = reachable(level, placed);
+    for (const p of placed) for (const c of pieceCells(p)) R.add(`${c.col},${c.row}`);
+    const near = (p) => pieceCells(p).some((c) => SIDES.some(([dc, dr]) => R.has(`${c.col + dc},${c.row + dr}`)));
     for (const drop of list) {
       if (!left[drop.type]) continue;
       const p = settle(level, placed, drop);
-      if (!p) continue;
+      if (!p || !(near(drop) || near(p))) continue; // dropped near the hero, or drifted up against something
       left[p.type]--;
       placed.push(p);
       const k = key();
@@ -72,7 +81,8 @@ let failed = 0;
 for (const file of readdirSync(dir).filter((f) => f.endsWith('.json')).sort()) {
   const level = parseLevel(JSON.parse(readFileSync(new URL(file, dir), 'utf8')));
   const list = candidates(level);
-  const drifting = level.tiles.some((line) => line.some((t) => t in CURRENTS));
+  // Currents and rafts: pieces can matter as blockers away from the route, so try everything.
+  const drifting = level.tiles.some((line) => line.some((t) => t in CURRENTS)) || level.pieces.raft > 0;
   const total = Object.values(level.pieces).reduce((a, b) => a + b, 0);
   const t0 = Date.now();
   let best = null;

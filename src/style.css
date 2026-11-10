@@ -64,7 +64,7 @@ body.fading #curtain { opacity: 1; }
   color: #fff; font-size: 20px; transition: transform 0.1s, background 0.1s;
 }
 .slot:hover { background: rgba(255, 255, 255, 0.2); transform: scale(1.02); }
-.slot img { width: 120px; height: 60px; object-fit: contain; pointer-events: none; }
+.slot img { width: 120px; height: 50px; object-fit: contain; pointer-events: none; }
 .slot b { font-weight: 400; font-size: 26px; color: var(--leaf); }
 .slot.empty { opacity: 0.35; cursor: default; transform: none; }
 .panel .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }

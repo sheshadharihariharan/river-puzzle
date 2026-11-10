@@ -10,6 +10,7 @@ import { starsFor, isUnlocked } from '../save.js';
 import { LEVELS } from '../levels.js';
 import { starRow } from './ui.js';
 import { sfx } from '../audio.js';
+import { THEMES, themeOf, pickTree } from '../three/themes.js';
 
 const PER_ROW = 4;
 const GAP_X = 2.6;
@@ -19,7 +20,7 @@ const AREA_GAP = 3; // extra room between areas for the stream
 const viewDepth = () => (window.innerHeight > window.innerWidth ? 6 : 10);
 
 const areaOf = (i) => LEVELS[i].id.split('-')[0]; // 'meadow' or 'forest'
-const AREA_NAMES = { meadow: 'Meadow', forest: 'Forest' };
+const AREA_NAMES = { meadow: 'Meadow', forest: 'Forest', snow: 'Snowy Peaks', swamp: 'Swamp' };
 
 // Snake layout: left to right, then right to left on the next row, with a gap between areas.
 function spotFor(i) {
@@ -31,7 +32,8 @@ function spotFor(i) {
 }
 
 export async function showMap(stage, ui, nav, justUnlocked = null) {
-  const names = ['pedestal', 'padlock', 'hero', 'cottage', 'tree-a', 'tree-b', 'bush', 'hill', 'plank'];
+  const treeNames = Object.values(THEMES).flatMap((t) => [...t.trees.map(([n]) => n), t.bush ?? 'bush']);
+  const names = [...new Set(['pedestal', 'padlock', 'hero', 'cottage', 'hill', 'plank', 'bush', ...treeNames])];
   const models = Object.fromEntries(await Promise.all(names.map(async (n) => [n, await instance(n)])));
   const copy = (n) => models[n].object.clone(true);
   const rand = seeded('map');
@@ -46,7 +48,10 @@ export async function showMap(stage, ui, nav, justUnlocked = null) {
   const crossings = [];
   for (let i = 1; i < LEVELS.length; i++) if (areaOf(i) !== areaOf(i - 1)) crossings.push(i);
   const streamRows = crossings.map((i) => Math.floor((spots[i - 1].z + spots[i].z) / 2));
-  const forestFromZ = crossings.length ? (spots[crossings[0] - 1].z + spots[crossings[0]].z) / 2 : Infinity;
+  // Each area runs from its stream to the next one; its look comes from its theme.
+  const borders = crossings.map((i) => (spots[i - 1].z + spots[i].z) / 2);
+  const areaNames = [areaOf(0), ...crossings.map((i) => areaOf(i))];
+  const themeAt = (z) => themeOf(areaNames[borders.filter((b) => z > b).length]);
 
   const area = { x0: Math.floor(min.x) - 14, z0: Math.floor(min.z) - 12, x1: Math.ceil(max.x) + 14, z1: Math.ceil(max.z) + 12 };
   const pond = new THREE.Vector2(max.x + 3, min.z - 2.5);
@@ -54,7 +59,7 @@ export async function showMap(stage, ui, nav, justUnlocked = null) {
     c === Math.floor(min.x) - 3 || c === Math.floor(min.x) - 4 ||
     streamRows.some((z) => r === z || r === z - 1) ||
     Math.hypot(c + 0.5 - pond.x, (r + 0.5 - pond.y) * 1.3) < 2;
-  buildGround(stage, scene, area, (c, r) => isWater(c, r) && 'shallow', (c, r) => (r + 0.5 > forestFromZ ? 0xb3cca6 : 0xffffff), [1, 0]);
+  buildGround(stage, scene, area, (c, r) => isWater(c, r) && 'shallow', (c, r) => ({ grass: themeAt(r + 0.5).grass, earth: themeAt(r + 0.5).earth }), [1, 0], THEMES.meadow.water);
 
   // Light green path joining the pedestals, with a plank bridge over each stream.
   const pathMat = noOutline(toon(0xc8f294));
@@ -130,7 +135,7 @@ export async function showMap(stage, ui, nav, justUnlocked = null) {
       const x = c + 0.5 + (rand() - 0.5) * 0.4;
       const z = r + 0.5 + (rand() - 0.5) * 0.4;
       if (isWater(c, r) || nearPath(x, z) || Math.hypot(x - end.x - 2, z - end.z) < 2.6) continue;
-      const inForest = z > forestFromZ;
+      const theme = themeAt(z);
       const roll = rand();
       const place = (n, s) => {
         const o = copy(n);
@@ -139,10 +144,11 @@ export async function showMap(stage, ui, nav, justUnlocked = null) {
         o.scale.setScalar(s);
         scene.add(o);
       };
-      if ((x < min.x - 4 || x > max.x + 5) && roll < 0.05) place('hill', 0.8 + rand() * 0.6);
-      else if (roll < (inForest ? 0.2 : 0.08)) place(rand() < (inForest ? 0.25 : 0.6) ? 'tree-a' : 'tree-b', 0.9 + rand() * 0.3);
-      else if (roll < (inForest ? 0.26 : 0.13)) place('bush', 0.8 + rand() * 0.4);
-      else if (roll < (inForest ? 0.35 : 0.5)) flowers.push({ x, z });
+      const trees = theme.treeDensity * 0.75;
+      if (theme.hills && (x < min.x - 4 || x > max.x + 5) && roll < 0.05) place('hill', 0.8 + rand() * 0.6);
+      else if (roll < trees) place(pickTree(theme, rand), 0.9 + rand() * 0.3);
+      else if (roll < trees + theme.bushDensity * 0.7) place(theme.bush ?? 'bush', 0.8 + rand() * 0.4);
+      else if (roll < 0.45 && theme.flowers !== false) flowers.push({ x, z });
     }
   addFlowers(scene, flowers, rand);
 

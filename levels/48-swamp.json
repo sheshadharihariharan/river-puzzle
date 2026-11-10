@@ -1,0 +1,19 @@
+{
+  "id": "swamp-48",
+  "name": "Journey's End",
+  "map": [
+    "S.#IIII#F",
+    "..#~~~~>v",
+    "L~~~##~~v",
+    "~~===~~~v",
+    "..#~~L~<<",
+    "..#....#H"
+  ],
+  "pieces": {
+    "raft": 1,
+    "stone": 3,
+    "plank": 2,
+    "log": 1
+  },
+  "par": 6
+}

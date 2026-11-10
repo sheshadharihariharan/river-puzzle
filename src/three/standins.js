@@ -242,6 +242,63 @@ const builders = {
     return g;
   },
 
+  // Four logs tied side by side, with rope bands. Logs run along x.
+  raft() {
+    const g = new THREE.Group();
+    for (let i = 0; i < 4; i++) {
+      const z = -0.3 + i * 0.2;
+      mesh(cyl(0.1, 0.1, 0.84, 14), i % 2 ? C.bark : 0x9b6a3a, g, [0, 0.1, z], [1, 1, 1], [0, 0, Math.PI / 2]);
+      for (const s of [-1, 1]) mesh(cyl(0.085, 0.085, 0.01, 14), C.logEnd, g, [s * 0.42, 0.1, z], [1, 1, 1], [0, 0, Math.PI / 2]);
+    }
+    for (const x of [-0.26, 0.26]) mesh(rbox(0.06, 0.06, 0.86, 0.02), 0xe0c48a, g, [x, 0.2, 0]);
+    return g;
+  },
+
+  // Snowy pine: stacked cones with white snow on each layer.
+  pine() {
+    const g = new THREE.Group();
+    mesh(cyl(0.05, 0.07, 0.3), C.trunk, g, [0, 0.15, 0]);
+    [[0.42, 0.45, 0.5], [0.33, 0.4, 0.82], [0.23, 0.34, 1.1]].forEach(([r, h, y]) => {
+      const cone = mesh(new THREE.ConeGeometry(r, h, 10), 0x2f7a4a, g, [0, y, 0]);
+      cone.geometry = mergeVertices(cone.geometry.deleteAttribute('normal').deleteAttribute('uv'));
+      cone.geometry.computeVertexNormals();
+      mesh(new THREE.ConeGeometry(r * 0.75, h * 0.45, 10), 0xffffff, g, [0, y + h * 0.3, 0]);
+    });
+    return g;
+  },
+
+  // Swamp tree: dark crooked trunk, droopy olive canopy with hanging moss.
+  'swamp-tree'() {
+    const g = new THREE.Group();
+    mesh(cyl(0.06, 0.12, 0.7), 0x4a3a28, g, [0, 0.35, 0], [1, 1, 1], [0, 0, 0.12]);
+    for (let i = 0; i < 3; i++) mesh(capsule(0.035, 0.18), 0x4a3a28, g, [Math.cos(i * 2.1) * 0.13, 0.05, Math.sin(i * 2.1) * 0.13], [1, 1, 1], [Math.sin(i * 2.1) * 1.1, 0, -Math.cos(i * 2.1) * 1.1]);
+    const r = rng(31);
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2;
+      mesh(sphere(0.2 + r() * 0.06), 0x5d7a35, g, [Math.cos(a) * 0.22 + 0.08, 0.78 + r() * 0.08, Math.sin(a) * 0.22], [1, 0.7, 1]);
+    }
+    mesh(sphere(0.24), 0x6e8c3e, g, [0.08, 0.92, 0], [1, 0.7, 1]);
+    for (let i = 0; i < 7; i++) {
+      const a = r() * Math.PI * 2;
+      mesh(capsule(0.018, 0.22), 0x8fa86a, g, [Math.cos(a) * 0.3 + 0.08, 0.55, Math.sin(a) * 0.3]);
+    }
+    return g;
+  },
+
+  // A clump of reeds with brown cattail tops.
+  reeds() {
+    const g = new THREE.Group();
+    const r = rng(47);
+    for (let i = 0; i < 7; i++) {
+      const x = (r() - 0.5) * 0.3;
+      const z = (r() - 0.5) * 0.3;
+      const h = 0.35 + r() * 0.25;
+      mesh(cyl(0.012, 0.018, h, 5), 0x6f9a3a, g, [x, h / 2, z], [1, 1, 1], [(r() - 0.5) * 0.3, 0, (r() - 0.5) * 0.3]);
+      if (i % 2) mesh(capsule(0.028, 0.09), 0x7a4a26, g, [x, h + 0.03, z]);
+    }
+    return g;
+  },
+
   // A big pink flower on a stem with two leaves.
   flower() {
     const g = new THREE.Group();

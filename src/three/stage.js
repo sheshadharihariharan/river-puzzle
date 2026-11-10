@@ -49,9 +49,9 @@ export class Stage {
   }
 
   // New empty scene with sky colour and lights. Shadows cover `size` units around `center`.
-  newScene(center, size) {
+  newScene(center, size, sky = 0x4f9e45) {
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x4f9e45);
+    scene.background = new THREE.Color(sky);
     scene.add(new THREE.HemisphereLight(0xffffff, 0x5c7a4a, 1.6));
     const sun = new THREE.DirectionalLight(0xfff3dd, 2.2);
     sun.position.set(center.x - 8, 14, center.z + 4);

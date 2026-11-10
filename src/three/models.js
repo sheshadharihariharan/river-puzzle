@@ -22,6 +22,10 @@ const SPECS = {
   pedestal: { fit: 'footprint', size: 0.92 },
   padlock: { fit: 'height', size: 0.5 },
   flower: { fit: 'height', size: 0.55 },
+  raft: { fit: 'footprint', size: 0.86 },
+  pine: { fit: 'footprint', size: 0.85 },
+  'swamp-tree': { fit: 'footprint', size: 1.0 },
+  reeds: { fit: 'height', size: 0.6 },
 };
 
 // Only files that really exist are listed, so missing models never cause errors.

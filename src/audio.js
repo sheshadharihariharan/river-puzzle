@@ -152,6 +152,13 @@ export const sfx = {
     [79, 84, 88].forEach((m, i) => tone(hz(m), t + i * 0.07, 0.35, { gain: 0.12 }));
     tone(hz(91), t + 0.21, 0.5, { type: 'triangle', gain: 0.06 });
   }),
+  // Glassy swish while sliding on ice.
+  slide: () => play((t) => noise(t, 0.2, { type: 'bandpass', freq: 3000, freqTo: 4500, q: 4, gain: 0.08 })),
+  // Crunch of thin ice cracking (or a lily pad going under).
+  crack: () => play((t) => {
+    for (let i = 0; i < 3; i++) noise(t + i * 0.05, 0.06, { type: 'highpass', freq: 1800 + i * 600, gain: 0.18 });
+    tone(140, t + 0.1, 0.25, { gain: 0.12, slideTo: 60 });
+  }),
   // Soft whoosh as a piece is carried by the current.
   drift: () => play((t) => noise(t, 0.45, { type: 'bandpass', freq: 500, freqTo: 1400, q: 1.5, gain: 0.12 })),
   // Little bell when a padlock pops off.

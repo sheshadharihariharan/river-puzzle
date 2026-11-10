@@ -1,0 +1,16 @@
+{
+  "id": "snow-33",
+  "name": "There and Back",
+  "map": [
+    "S...~~~~~",
+    "....~TTT~",
+    "H...T~F~~",
+    "....~TTT~",
+    "....~~~~~"
+  ],
+  "pieces": {
+    "stone": 2,
+    "plank": 1
+  },
+  "par": 2
+}

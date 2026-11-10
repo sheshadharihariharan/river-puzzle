@@ -6,6 +6,8 @@
 //   =  deep water (stones sink, planks and logs float)
 //   > < v ^  fast current: pieces dropped here drift that way until something stops them
 //   F  flower the hero must pick before going home
+//   I  slippery ice: the hero slides straight on until something stops them
+//   T  thin ice, L  lily pad: hold the hero once, then crack or sink behind them
 
 export const GRASS = '.';
 export const WATER = '~';
@@ -14,18 +16,25 @@ export const ROCK = '#';
 export const START = 'S';
 export const GOAL = 'H';
 export const FLOWER = 'F';
+export const ICE = 'I';
+export const THIN = 'T';
+export const LILY = 'L';
+export const FRAGILE = [THIN, LILY];
 // Current tiles and the way they flow, as [columns, rows].
 export const CURRENTS = { '>': [1, 0], '<': [-1, 0], v: [0, 1], '^': [0, -1] };
-const TILES = [GRASS, WATER, DEEP, ROCK, START, GOAL, FLOWER, ...Object.keys(CURRENTS)];
+const TILES = [GRASS, WATER, DEEP, ROCK, START, GOAL, FLOWER, ICE, THIN, LILY, ...Object.keys(CURRENTS)];
 
 export const isWet = (t) => t === WATER || t === DEEP || t in CURRENTS;
 export const isLand = (t) => t === GRASS || t === START || t === GOAL || t === FLOWER;
+// Anything the hero can stand on without a piece.
+export const isFooting = (t) => isLand(t) || t === ICE || FRAGILE.includes(t);
 
 // length = how many water tiles the piece covers in a straight line.
 export const PIECES = {
   stone: { length: 1, label: 'Stone' },
   plank: { length: 2, label: 'Plank' },
   log: { length: 3, label: 'Log' },
+  raft: { length: 1, label: 'Raft' }, // stays put when dropped; carries the hero along a current
 };
 export const PIECE_TYPES = Object.keys(PIECES);
 
@@ -113,6 +122,7 @@ export function turnPiece(level, placed, index) {
 // until the next spot is blocked or it reaches calm water. Returns null if it can't go there at all.
 export function settle(level, placed, piece, ignoreIndex = -1) {
   if (!canPlace(level, placed, piece, ignoreIndex)) return null;
+  if (piece.type === 'raft') return piece; // rafts are tied up until the hero steps on
   for (let guard = 0; guard < 50; guard++) {
     const cell = pieceCells(piece).find((c) => tileAt(level, c.col, c.row) in CURRENTS);
     if (!cell) break;

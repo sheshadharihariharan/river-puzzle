@@ -1,0 +1,17 @@
+{
+  "id": "snow-34",
+  "name": "Skate to It",
+  "map": [
+    "S.......#",
+    "IIIIIIIT~",
+    "~~~~~~~~~",
+    "~~~~~~~~~",
+    "F......#H"
+  ],
+  "pieces": {
+    "stone": 2,
+    "plank": 2,
+    "log": 1
+  },
+  "par": 3
+}

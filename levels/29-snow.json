@@ -1,0 +1,17 @@
+{
+  "id": "snow-29",
+  "name": "Ice Maze",
+  "map": [
+    "S.IIIII#.",
+    "#IIII#II.",
+    "IIIIIIII~",
+    "II#IIIII~",
+    "IIIIII~I~",
+    "######..H"
+  ],
+  "pieces": {
+    "stone": 2,
+    "plank": 1
+  },
+  "par": 1
+}

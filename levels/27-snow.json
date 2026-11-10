@@ -1,0 +1,19 @@
+{
+  "id": "snow-27",
+  "name": "Frozen Pond",
+  "map": [
+    "S........",
+    "IIII#IIII",
+    "IIIIIIII#",
+    "#IIIIIIII",
+    "~~~~~~~~~",
+    "~~~~~~~~~",
+    "....H...."
+  ],
+  "pieces": {
+    "plank": 1,
+    "stone": 1,
+    "log": 1
+  },
+  "par": 1
+}

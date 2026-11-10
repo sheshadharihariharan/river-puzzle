@@ -1,6 +1,6 @@
 // The puzzle screen: 3D board, piece tray, dragging, and the walk when you press Go.
 import * as THREE from 'three';
-import { PIECES, PIECE_TYPES, DEEP, ROCK, START, GOAL, FLOWER, CURRENTS, isWet, settle, pieceIndexAt, pieceCells, piecesLeft, turnPiece, starsFor } from '../logic/grid.js';
+import { PIECES, PIECE_TYPES, DEEP, ROCK, START, GOAL, FLOWER, ICE, THIN, LILY, FRAGILE, CURRENTS, isWet, settle, pieceIndexAt, pieceCells, piecesLeft, turnPiece, starsFor } from '../logic/grid.js';
 import { planWalk } from '../logic/path.js';
 import { buildGround, addFlowers, seeded, WATER_Y } from '../three/ground.js';
 import { instance } from '../three/models.js';
@@ -13,6 +13,7 @@ import { LEVELS } from '../levels.js';
 import { starRow, popup } from './ui.js';
 import { sfx } from '../audio.js';
 import { RULE_MODELS, rulesIn, newRulesIn, ruleCards } from './rules.js';
+import { themeOf, pickTree } from '../three/themes.js';
 
 const MARGIN = 12; // scenery cells around the board
 const PIECE_BASE = WATER_Y - 0.07; // pieces sit slightly sunk in the water
@@ -24,12 +25,13 @@ export async function showBoard(stage, ui, index, nav) {
   const rand = seeded(level.id);
 
   // ---------- models ----------
-  const wanted = [...new Set(['hero', 'cottage', 'rock-a', 'rock-b', 'tree-a', 'tree-b', 'bush', 'hill', 'flower', ...PIECE_TYPES, ...RULE_MODELS])];
+  const theme = themeOf(level.id);
+  const wanted = [...new Set(['hero', 'cottage', 'rock-a', 'rock-b', 'bush', 'hill', 'flower', ...theme.trees.map(([n]) => n), theme.bush ?? 'bush', ...PIECE_TYPES, ...RULE_MODELS])];
   const models = Object.fromEntries(await Promise.all(wanted.map(async (n) => [n, await instance(n)])));
   const copy = (name) => models[name].object.clone(true);
 
   // ---------- scene ----------
-  const scene = stage.newScene(new THREE.Vector3(cols / 2, 0, rows / 2), Math.max(cols, rows) + 3);
+  const scene = stage.newScene(new THREE.Vector3(cols / 2, 0, rows / 2), Math.max(cols, rows) + 3, theme.sky);
   const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
   const tileOf = (c, r) => level.tiles[clamp(r, 0, rows - 1)][clamp(c, 0, cols - 1)];
   const inside = (c, r) => c >= 0 && r >= 0 && c < cols && r < rows;
@@ -37,7 +39,7 @@ export async function showBoard(stage, ui, index, nav) {
 // Rivers run on past the board edges.
   const waterAt = (c, r) => {
     const t = tileOf(c, r);
-    return t === DEEP ? 'deep' : isWet(t) && 'shallow';
+    return t === DEEP ? 'deep' : (isWet(t) || t === ICE || FRAGILE.includes(t)) && 'shallow'; // ice and pads float on water
   };
   const isWater = (c, r) => !!waterAt(c, r);
   // Ripples follow the current if there is one, otherwise the way the river leaves the board.
@@ -47,9 +49,8 @@ export async function showBoard(stage, ui, index, nav) {
   for (let c = 0; c < cols; c++) across += isWater(c, 0) + isWater(c, rows - 1);
   const currentTile = level.tiles.flat().find((t) => t in CURRENTS);
   const flow = currentTile ? CURRENTS[currentTile] : along >= across ? [1, 0] : [0, 1];
-  const forest = level.id.startsWith('forest');
-  const outsideTint = forest ? 0xb3cca6 : 0xd2e3c4;
-  buildGround(stage, scene, area, waterAt, (c, r) => (inside(c, r) ? ((c + r) % 2 ? 0xffffff : 0xeef8e4) : outsideTint), flow);
+  const landAt = (c, r) => ({ grass: inside(c, r) ? ((c + r) % 2 ? theme.grass : theme.grassAlt) : theme.around, earth: theme.earth });
+  buildGround(stage, scene, area, waterAt, landAt, flow, theme.water);
 
   // Faint tile lines on the board's water, so you can count where pieces will fit.
   const lines = [];
@@ -93,6 +94,60 @@ export async function showBoard(stage, ui, index, nav) {
     });
   }
 
+  // Ice sheets, thin ice and lily pads. Thin ice and pads are kept so they can break during the walk.
+  const fragileObjs = new Map();
+  const iceTop = noOutline(toon(0xbde6f7)); // bluer than snow, so ice reads as ice
+  const iceSide = noOutline(toon(0x86c3e2));
+  const thinMat = noOutline(toon(0x9fd6ef, { transparent: true, opacity: 0.75 }));
+  const crackMat = noOutline(new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.85 }));
+  const padMat = noOutline(toon(0x5fae3a));
+  const veinMat = noOutline(new THREE.LineBasicMaterial({ color: 0x3f7f25 }));
+  for (let r = 0; r < rows; r++)
+    for (let c = 0; c < cols; c++) {
+      const t = level.tiles[r][c];
+      if (t === ICE) {
+        const slab = new THREE.Mesh(new THREE.BoxGeometry(1, 0.24, 1), [iceSide, iceSide, iceTop, iceSide, iceSide, iceSide]);
+        slab.position.set(c + 0.5, -0.16, r + 0.5);
+        slab.receiveShadow = true;
+        scene.add(slab);
+        const shine = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 0.06).rotateX(-Math.PI / 2).rotateY(Math.PI / 4), noOutline(new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.8 })));
+        shine.position.set(c + 0.35 + rand() * 0.3, -0.035, r + 0.35 + rand() * 0.3);
+        scene.add(shine);
+      } else if (t === THIN) {
+        const g = new THREE.Group();
+        const sheet = new THREE.Mesh(new THREE.BoxGeometry(0.94, 0.08, 0.94), thinMat);
+        sheet.receiveShadow = true;
+        const pts = [];
+        for (let k = 0; k < 4; k++) {
+          const a = rand() * Math.PI * 2;
+          pts.push(0, 0.045, 0, Math.cos(a) * 0.42, 0.045, Math.sin(a) * 0.42);
+        }
+        g.add(sheet, new THREE.LineSegments(new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute(pts, 3)), crackMat));
+        g.position.set(c + 0.5, -0.12, r + 0.5);
+        scene.add(g);
+        fragileObjs.set(`${c},${r}`, g);
+      } else if (t === LILY) {
+        const g = new THREE.Group();
+        const pad = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 0.04, 28, 1, false, 0.3, Math.PI * 2 - 0.6), padMat);
+        pad.receiveShadow = true;
+        const veins = [];
+        for (let k = 1; k < 6; k++) {
+          const a = 0.3 + k * ((Math.PI * 2 - 0.6) / 6);
+          veins.push(0, 0.025, 0, Math.sin(a) * 0.36, 0.025, Math.cos(a) * 0.36);
+        }
+        g.add(pad, new THREE.LineSegments(new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute(veins, 3)), veinMat));
+        if (rand() < 0.4) {
+          const bloom = new THREE.Mesh(new THREE.SphereGeometry(0.07, 10, 8), toon(0xff9ec7));
+          bloom.position.set(0.18, 0.05, 0.12);
+          g.add(bloom);
+        }
+        g.rotation.y = rand() * Math.PI * 2;
+        g.position.set(c + 0.5, WATER_Y + 0.02, r + 0.5);
+        scene.add(g);
+        fragileObjs.set(`${c},${r}`, g);
+      }
+    }
+
   // Things standing on the board.
   const flowerSpots = [];
   let flowerObj = null;
@@ -118,7 +173,7 @@ export async function showBoard(stage, ui, index, nav) {
         flowerObj = copy('flower');
         flowerObj.position.set(c + 0.5, 0, r + 0.5);
         scene.add(flowerObj);
-      } else if (!isWet(t) && rand() < 0.35) {
+      } else if (theme.flowers !== false && t !== ICE && !FRAGILE.includes(t) && !isWet(t) && rand() < 0.35) {
         flowerSpots.push({ x: c + 0.15 + rand() * 0.7, z: r + 0.15 + rand() * 0.7 });
       }
     }
@@ -137,12 +192,39 @@ export async function showBoard(stage, ui, index, nav) {
         o.scale.setScalar(scale);
         scene.add(o);
       };
-      if (!front && d >= 5 && roll < 0.06) place('hill', 0.8 + rand() * 0.5);
-      else if (d >= (front ? 4 : 2) && roll < (forest ? 0.26 : 0.14)) place(rand() < (forest ? 0.3 : 0.6) ? 'tree-a' : 'tree-b', 0.85 + rand() * 0.3);
-      else if (d >= (front ? 3 : 1) && roll < 0.22) place('bush', 0.8 + rand() * 0.4);
-      else if (roll < 0.6) flowerSpots.push({ x: c + rand(), z: r + rand() });
+      if (theme.hills && !front && d >= 5 && roll < 0.06) place('hill', 0.8 + rand() * 0.5);
+      else if (d >= (front ? 4 : 2) && roll < theme.treeDensity) place(pickTree(theme, rand), 0.85 + rand() * 0.3);
+      else if (d >= (front ? 3 : 1) && roll < theme.treeDensity + theme.bushDensity) place(theme.bush ?? 'bush', 0.7 + rand() * 0.4);
+      else if (roll < 0.6 && theme.flowers !== false) flowerSpots.push({ x: c + rand(), z: r + rand() });
     }
   addFlowers(scene, flowerSpots, rand);
+  if (theme.extra) weather(theme.extra);
+
+  // Snow drifting down, or fireflies blinking over the swamp.
+  function weather(kind) {
+    const n = kind === 'snowfall' ? 260 : 60;
+    const pos = new Float32Array(n * 3);
+    for (let i = 0; i < n; i++) pos.set([-4 + rand() * (cols + 8), rand() * 5, -4 + rand() * (rows + 8)], i * 3);
+    const geo = new THREE.BufferGeometry().setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    const mat = noOutline(new THREE.PointsMaterial(kind === 'snowfall'
+      ? { color: 0xffffff, size: 0.07, transparent: true, opacity: 0.9, depthWrite: false }
+      : { color: 0xfff27a, size: 0.09, transparent: true, opacity: 0.9, depthWrite: false }));
+    scene.add(new THREE.Points(geo, mat));
+    stage.onTick((dt, time) => {
+      for (let i = 0; i < n; i++) {
+        if (kind === 'snowfall') {
+          pos[i * 3 + 1] -= dt * (0.35 + (i % 5) * 0.06);
+          pos[i * 3] += Math.sin(time + i) * dt * 0.1;
+          if (pos[i * 3 + 1] < -0.2) pos[i * 3 + 1] = 5;
+        } else {
+          pos[i * 3 + 1] = 0.4 + ((i * 0.37) % 1.2) + Math.sin(time * 1.3 + i) * 0.15;
+          pos[i * 3] += Math.sin(time * 0.7 + i * 2) * dt * 0.15;
+        }
+      }
+      if (kind !== 'snowfall') mat.opacity = 0.55 + Math.sin(time * 3) * 0.35;
+      geo.attributes.position.needsUpdate = true;
+    });
+  }
 
 
   // ---------- hero ----------
@@ -165,9 +247,11 @@ export async function showBoard(stage, ui, index, nav) {
     return PIECE_BASE + models[type].top;
   }
 
-  function cellPos(cell) {
-    const i = pieceIndexAt(placed, cell.col, cell.row);
-    const y = i >= 0 ? pieceTop(placed[i].type) : isWet(level.tiles[cell.row]?.[cell.col]) ? WATER_Y : 0;
+  // Where the hero stands on a cell. pieces: where the pieces are right now (rafts move during the walk).
+  function cellPos(cell, pieces = placed) {
+    const i = pieceIndexAt(pieces, cell.col, cell.row);
+    const t = level.tiles[cell.row]?.[cell.col];
+    const y = i >= 0 ? pieceTop(pieces[i].type) : t === ICE ? -0.04 : t === THIN ? -0.08 : t === LILY ? WATER_Y + 0.04 : isWet(t) ? WATER_Y : 0;
     return new THREE.Vector3(cell.col + 0.5, y, cell.row + 0.5);
   }
 
@@ -482,18 +566,70 @@ export async function showBoard(stage, ui, index, nav) {
     hero.root.rotation.y = Math.atan2(to.x - from.x, to.z - from.z);
   }
 
+  // live: piece positions during the walk (rafts move as they carry the hero).
+  let live = placed;
   async function step(a, b, portion = 1) {
-    const from = cellPos(a);
-    const to = cellPos(b);
+    // A raft carrying the hero: raft and hero float on together.
+    if (b.how === 'ride') {
+      const from = cellPos(a, live);
+      live = live.map((p, i) => (i === b.raft ? { ...p, col: b.col, row: b.row } : p));
+      const to = cellPos(b, live);
+      const raft = pieceObjs[b.raft];
+      const r0 = raft.position.clone();
+      const r1 = new THREE.Vector3(b.col + 0.5, r0.y, b.row + 0.5);
+      hero.play('idle');
+      sfx.drift();
+      await stage.tween(0.45, (t) => {
+        hero.root.position.lerpVectors(from, to, t);
+        raft.position.x = r0.x + (r1.x - r0.x) * t;
+        raft.position.z = r0.z + (r1.z - r0.z) * t;
+      });
+      return;
+    }
+    const from = cellPos(a, live);
+    const to = cellPos(b, live);
     face(from, to);
-    const onStone = (c) => placed[pieceIndexAt(placed, c.col, c.row)]?.type === 'stone';
-    const hop = Math.abs(to.y - from.y) > 0.04 || onStone(a) || onStone(b);
+    breakBehind(a);
+    // Sliding on ice: no steps, just glide.
+    if (b.how === 'slide') {
+      hero.play('idle');
+      sfx.slide();
+      await stage.tween(0.16, (t) => hero.root.position.lerpVectors(from, to, t));
+      return;
+    }
+    const onSolid = (c) => ['stone', 'raft'].includes(live[pieceIndexAt(live, c.col, c.row)]?.type) || level.tiles[c.row]?.[c.col] === LILY;
+    const hop = Math.abs(to.y - from.y) > 0.04 || onSolid(a) || onSolid(b);
     hero.play(hop ? 'hop' : 'walk', hop);
     (hop ? sfx.hop : sfx.step)();
     await stage.tween(hop ? 0.4 : 0.3, (t) => {
       hero.root.position.lerpVectors(from, to, t * portion);
       hero.root.position.y = from.y + (to.y - from.y) * t + (hop ? Math.sin(Math.PI * t) * 0.25 : 0);
     });
+  }
+
+  // Thin ice cracks and lily pads sink as the hero steps off them.
+  function breakBehind(cell) {
+    const obj = fragileObjs.get(`${cell.col},${cell.row}`);
+    if (!obj || !obj.visible) return;
+    sfx.crack();
+    const y0 = obj.position.y;
+    stage.tween(0.6, (t) => {
+      obj.position.y = y0 - t * 0.35;
+      obj.scale.setScalar(1 - t * 0.4);
+      obj.rotation.z = t * 0.3;
+      if (t === 1) obj.visible = false;
+    }, ease.in);
+    puff(stage, scene, new THREE.Vector3(cell.col + 0.5, WATER_Y + 0.05, cell.row + 0.5));
+  }
+
+  function mendTiles() {
+    for (const [k, obj] of fragileObjs) {
+      const [c, r] = k.split(',').map(Number);
+      obj.visible = true;
+      obj.scale.setScalar(1);
+      obj.rotation.z = 0;
+      obj.position.y = level.tiles[r][c] === LILY ? WATER_Y + 0.02 : -0.12;
+    }
   }
 
   // Camera behind the hero while walking; in front of them for the cheer.
@@ -514,6 +650,7 @@ export async function showBoard(stage, ui, index, nav) {
     camFront = false;
     stage.follow(heroPose);
     await stage.wait(0.5);
+    live = placed;
     const plan = planWalk(level, placed);
     const path = plan.path;
     for (let i = 1; i < path.length; i++) {
@@ -541,7 +678,8 @@ export async function showBoard(stage, ui, index, nav) {
   }
 
   async function fall(from, into, plan) {
-    const a = cellPos(from);
+    breakBehind(from);
+    const a = cellPos(from, live);
     const b = new THREE.Vector3(into.col + 0.5, WATER_Y, into.row + 0.5);
     face(a, b);
     hero.play('fall');
@@ -559,7 +697,8 @@ export async function showBoard(stage, ui, index, nav) {
     hero.root.visible = false;
     await stage.wait(0.5);
     sfx.fail();
-    showFail('Splash!', fallReason(plan), plan.why === 'gap' ? [] : [plan.piece]);
+    const card = { gap: null, slid: 'ice', cracked: plan.piece === LILY ? 'lily' : 'thin' }[plan.why] ?? plan.piece;
+    showFail('Splash!', fallReason(plan), card ? [card] : []);
   }
 
   async function win() {
@@ -591,6 +730,8 @@ export async function showBoard(stage, ui, index, nav) {
     const name = PIECES[plan.piece]?.label.toLowerCase();
     if (plan.why === 'side-off') return `The hero can’t step off the side of a ${name}, only off its ends. Put a stone where the path turns.`;
     if (plan.why === 'side-on') return `The hero can’t step onto the side of a ${name}, only onto its ends.`;
+    if (plan.why === 'cracked') return plan.piece === LILY ? 'Lily pads sink after one step, so the hero can’t use one twice.' : 'Thin ice cracks after one step, so the hero can’t cross it twice.';
+    if (plan.why === 'slid') return 'The hero slid across the ice into the water. Something has to stop them at the end of the ice.';
     return `No dry path to the ${level.flower && plan.flowerAt < 0 ? 'flower' : 'cottage'}.`;
   }
 
@@ -608,6 +749,9 @@ export async function showBoard(stage, ui, index, nav) {
             await stage.unfollow();
             ui.classList.remove('walking');
             hero.reset(startPos(), facingCamera);
+            mendTiles();
+            live = placed;
+            drawPieces(); // rafts back where they were placed
             if (flowerObj) {
               flowerObj.visible = true;
               flowerObj.scale.setScalar(1);
